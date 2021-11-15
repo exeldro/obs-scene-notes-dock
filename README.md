@@ -11,3 +11,5 @@ Plugin for OBS Studio to add a scene notes dock.
 
 # Donations
 https://www.paypal.me/exeldro
+
+Thanks to the contributions of [EF Education First](https://ef.com)
