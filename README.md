@@ -2,6 +2,8 @@
 
 Plugin for OBS Studio to add a scene notes dock.
 
+# Download
+https://obsproject.com/forum/resources/scene-notes-dock.1398/
 
 # Build
 - Build OBS Studio: https://obsproject.com/wiki/Install-Instructions
