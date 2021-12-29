@@ -1,7 +1,12 @@
+cmake_minimum_required(VERSION 3.18)
+
 project(scene-notes-dock VERSION 0.0.1)
 set(PROJECT_FULL_NAME "Scene Notes Dock")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
+
+# Fix undefined symbol
+set(CMAKE_AUTOMOC ON)
 
 set(scene-notes-dock_HEADERS
 	scene-notes-dock.hpp
