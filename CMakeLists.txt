@@ -1,7 +1,10 @@
+cmake_minimum_required(VERSION 3.18)
 project(scene-notes-dock VERSION 0.0.2)
 set(PROJECT_FULL_NAME "Scene Notes Dock")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
+
+find_package(Qt5Widgets)
 
 set(CMAKE_AUTOMOC ON)
 
