@@ -4,6 +4,8 @@ set(PROJECT_FULL_NAME "Scene Notes Dock")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
 
+find_package(Qt5Widgets)
+
 set(CMAKE_AUTOMOC ON)
 
 set(scene-notes-dock_HEADERS
