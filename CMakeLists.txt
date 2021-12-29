@@ -1,7 +1,9 @@
-project(scene-notes-dock VERSION 0.0.1)
+project(scene-notes-dock VERSION 0.0.2)
 set(PROJECT_FULL_NAME "Scene Notes Dock")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
+
+set(CMAKE_AUTOMOC ON)
 
 set(scene-notes-dock_HEADERS
 	scene-notes-dock.hpp
@@ -24,6 +26,10 @@ if(WIN32)
 		scene-notes-dock.rc)
 endif()
 
+if(BUILD_OUT_OF_TREE)
+    find_package(LibObs REQUIRED)
+endif()
+
 add_library(scene-notes-dock MODULE
 	${scene-notes-dock_HEADERS}
 	${scene-notes-dock_SOURCES})
@@ -33,5 +39,21 @@ target_link_libraries(scene-notes-dock
 		Qt5::Widgets
 		libobs)
 
-set_target_properties(scene-notes-dock PROPERTIES FOLDER "plugins/exeldro")
-install_obs_plugin_with_data(scene-notes-dock data)
+if(BUILD_OUT_OF_TREE)
+    if(NOT LIB_OUT_DIR)
+        set(LIB_OUT_DIR "/lib/obs-plugins")
+    endif()
+    if(NOT DATA_OUT_DIR)
+        set(DATA_OUT_DIR "/share/obs/obs-plugins/scene-notes-dock")
+    endif()
+    set_target_properties(scene-notes-dock PROPERTIES PREFIX "")
+    install(TARGETS scene-notes-dock
+        LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/${LIB_OUT_DIR})
+    install(DIRECTORY data/locale
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${DATA_OUT_DIR})
+else()
+    target_include_directories(scene-notes-dock PRIVATE
+        "${CMAKE_SOURCE_DIR}/UI/obs-frontend-api")
+    set_target_properties(scene-notes-dock PROPERTIES FOLDER "plugins/exeldro")
+    install_obs_plugin_with_data(scene-notes-dock data)
+endif()
