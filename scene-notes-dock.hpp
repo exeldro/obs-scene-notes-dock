@@ -9,10 +9,12 @@ class SceneNotesDock : public QDockWidget {
 	Q_OBJECT
 
 private:
+	bool show_preview;
 private slots:
 
 public:
 	SceneNotesDock(QWidget *parent = nullptr);
 	~SceneNotesDock();
 	QTextEdit *textEdit;
+	void LoadNotes();
 };
