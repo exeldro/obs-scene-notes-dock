@@ -8,6 +8,7 @@
 #include <QVBoxLayout>
 
 #include "version.h"
+#include "util/config-file.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("Exeldro");
@@ -47,22 +48,16 @@ static void frontend_event(enum obs_frontend_event event, void *data)
 	    event == OBS_FRONTEND_EVENT_PREVIEW_SCENE_CHANGED ||
 	    event == OBS_FRONTEND_EVENT_STUDIO_MODE_DISABLED ||
 	    event == OBS_FRONTEND_EVENT_STUDIO_MODE_ENABLED) {
-		auto *scene = obs_frontend_get_current_scene();
-		if (!scene)
-			return;
-
-		if (auto *settings = obs_source_get_settings(scene)) {
-			const auto *dock = static_cast<SceneNotesDock *>(data);
-			dock->textEdit->setHtml(QT_UTF8(
-				obs_data_get_string(settings, "notes")));
-			obs_data_release(settings);
-		}
-		obs_source_release(scene);
+		auto *dock = static_cast<SceneNotesDock *>(data);
+		dock->LoadNotes();
 	}
 }
 
 SceneNotesDock::SceneNotesDock(QWidget *parent)
-	: QDockWidget(parent), textEdit(new QTextEdit(this))
+	: QDockWidget(parent),
+	  textEdit(new QTextEdit(this)),
+	  show_preview(config_get_bool(obs_frontend_get_global_config(),
+				       "SceneNotesDock", "ShowPreview"))
 {
 	setFeatures(DockWidgetMovable | DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
@@ -79,7 +74,10 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 	setWidget(dockWidgetContents);
 
 	auto changeText = [this]() {
-		auto *scene = obs_frontend_get_current_scene();
+		obs_source_t *scene =
+			show_preview && obs_frontend_preview_program_mode_active()
+				? obs_frontend_get_current_preview_scene()
+				: obs_frontend_get_current_scene();
 		if (!scene)
 			return;
 		if (auto *settings = obs_source_get_settings(scene)) {
@@ -144,6 +142,21 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		};
 		menu->addAction(QT_UTF8(obs_module_text("ClearFormat")), this,
 				clearFormat);
+
+		menu->addSeparator();
+		auto a = menu->addAction(
+			QT_UTF8(obs_module_text("ShowPreview")), this, [this] {
+				show_preview = !show_preview;
+				config_set_bool(
+					obs_frontend_get_global_config(),
+					"SceneNotesDock", "ShowPreview",
+					show_preview);
+				LoadNotes();
+			});
+		a->setCheckable(true);
+		a->setChecked(show_preview);
+		a->setEnabled(obs_frontend_preview_program_mode_active());
+
 		menu->exec(QCursor::pos());
 	};
 	connect(textEdit, &QTextEdit::customContextMenuRequested, contextMenu);
@@ -154,4 +167,21 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 SceneNotesDock::~SceneNotesDock()
 {
 	obs_frontend_remove_event_callback(frontend_event, this);
+}
+
+void SceneNotesDock::LoadNotes()
+{
+	obs_source_t *scene =
+		show_preview && obs_frontend_preview_program_mode_active()
+			? obs_frontend_get_current_preview_scene()
+			: obs_frontend_get_current_scene();
+	if (!scene)
+		return;
+
+	if (auto *settings = obs_source_get_settings(scene)) {
+		textEdit->setHtml(
+			QT_UTF8(obs_data_get_string(settings, "notes")));
+		obs_data_release(settings);
+	}
+	obs_source_release(scene);
 }
