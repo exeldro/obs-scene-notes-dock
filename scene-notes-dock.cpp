@@ -187,8 +187,14 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 					cl->setFormat(f);
 				}
 			};
-			listMenu->addAction(QT_UTF8(obs_module_text(it.second)),
+			auto a = listMenu->addAction(QT_UTF8(obs_module_text(it.second)),
 					    this, setListType);
+			a->setCheckable(true);
+			auto cursor = textEdit->textCursor();
+			auto cl = cursor.currentList();
+			if (cl && cl->format().style() == it.first) {
+				a->setChecked(true);
+			}
 		}
 
 		listMenu->addSeparator();
