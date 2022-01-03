@@ -54,9 +54,39 @@ static void frontend_event(enum obs_frontend_event event, void *data)
 	}
 }
 
+void frontend_save(obs_data_t *save_data, bool saving, void *data)
+{
+	auto *dock = static_cast<SceneNotesDock *>(data);
+	if (saving) {
+		obs_data_array_t *hotkey_save_array =
+			obs_hotkey_save(dock->insertTime);
+		obs_data_set_array(save_data, "sceneNotesDockInsertTimeHotkey",
+				   hotkey_save_array);
+		obs_data_array_release(hotkey_save_array);
+	} else {
+		obs_data_array_t *hotkey_save_array = obs_data_get_array(
+			save_data, "sceneNotesDockInsertTimeHotkey");
+		obs_hotkey_load(dock->insertTime, hotkey_save_array);
+		obs_data_array_release(hotkey_save_array);
+	}
+}
+
+static void InsertTimePressed(void *data, obs_hotkey_id id,
+			      obs_hotkey_t *hotkey, bool pressed)
+{
+	if (!pressed)
+		return;
+	auto dock = static_cast<SceneNotesDock *>(data);
+	QMetaObject::invokeMethod(dock, "InsertTime");
+}
+
 SceneNotesDock::SceneNotesDock(QWidget *parent)
 	: QDockWidget(parent),
 	  textEdit(new QTextEdit(this)),
+	  insertTime(obs_hotkey_register_frontend(
+		  "SceneNotesDockInsertTime",
+		  obs_module_text("SceneNotesDockInsertTime"),
+		  InsertTimePressed, this)),
 	  show_preview(config_get_bool(obs_frontend_get_global_config(),
 				       "SceneNotesDock", "ShowPreview"))
 {
@@ -254,10 +284,13 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 	connect(textEdit, &QTextEdit::customContextMenuRequested, contextMenu);
 
 	obs_frontend_add_event_callback(frontend_event, this);
+	obs_frontend_add_save_callback(frontend_save, this);
 }
 
 SceneNotesDock::~SceneNotesDock()
 {
+	obs_hotkey_unregister(insertTime);
+	obs_frontend_remove_save_callback(frontend_save, this);
 	obs_frontend_remove_event_callback(frontend_event, this);
 }
 
@@ -276,4 +309,16 @@ void SceneNotesDock::LoadNotes()
 		obs_data_release(settings);
 	}
 	obs_source_release(scene);
+}
+
+void SceneNotesDock::InsertTime()
+{
+	time_t rawtime;
+	struct tm *timeinfo;
+	char buffer[80];
+
+	time(&rawtime);
+	timeinfo = localtime(&rawtime);
+	strftime(buffer, 80, "%X ", timeinfo);
+	textEdit->insertPlainText(QT_UTF8(buffer));
 }

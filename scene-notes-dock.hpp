@@ -12,9 +12,10 @@ private:
 	bool show_preview;
 	QTextEdit *textEdit;
 private slots:
-
+	void InsertTime();
 public:
 	SceneNotesDock(QWidget *parent = nullptr);
 	~SceneNotesDock();
 	void LoadNotes();
+	obs_hotkey_id insertTime;
 };
