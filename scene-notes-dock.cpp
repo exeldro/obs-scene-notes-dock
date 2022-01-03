@@ -6,6 +6,7 @@
 #include <QMenu>
 #include <QStyle>
 #include <QVBoxLayout>
+#include <QTextList>
 
 #include "version.h"
 #include "util/config-file.h"
@@ -129,6 +130,97 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		};
 		menu->addAction(QT_UTF8(obs_module_text("BackgroundColor")),
 				this, setBackgroundColor);
+
+		auto listMenu = menu->addMenu(QT_UTF8(obs_module_text("List")));
+
+		std::vector<std::pair<QTextListFormat::Style, const char *>>
+			types{
+				{QTextListFormat::ListDisc, "Disc"},
+				{QTextListFormat::ListCircle, "Circle"},
+				{QTextListFormat::ListSquare, "Square"},
+				{QTextListFormat::ListDecimal, "Decimal"},
+				{QTextListFormat::ListLowerAlpha, "LowerAlpha"},
+				{QTextListFormat::ListUpperAlpha, "UpperAlpha"},
+				{QTextListFormat::ListLowerRoman, "LowerRoman"},
+				{QTextListFormat::ListUpperRoman, "UpperRoman"},
+			};
+		for (const auto &it : types) {
+			auto t = it.first;
+			auto setListType = [this, t]() {
+				auto cursor = textEdit->textCursor();
+				auto cl = cursor.currentList();
+				if (!cl) {
+					cursor.createList(t);
+				} else {
+					auto f = cl->format();
+					f.setStyle(t);
+					cl->setFormat(f);
+				}
+			};
+			listMenu->addAction(QT_UTF8(obs_module_text(it.second)),
+					    this, setListType);
+		}
+
+		listMenu->addSeparator();
+
+		auto setListIncr = [this]() {
+			auto cursor = textEdit->textCursor();
+			QTextBlockFormat blockFormat =
+				cursor.block().blockFormat();
+			blockFormat.setIndent(blockFormat.indent() + 1);
+			cursor.beginEditBlock();
+			cursor.setBlockFormat(blockFormat);
+			auto cl = cursor.currentList();
+			if (cl) {
+				cursor.createList(cl->format().style());
+			}
+			cursor.endEditBlock();
+		};
+		listMenu->addAction(QT_UTF8(obs_module_text("IncreaseIndent")),
+				    this, setListIncr);
+
+		auto setListDecr = [this]() {
+			auto cursor = textEdit->textCursor();
+			auto block = cursor.block();
+			QTextBlockFormat blockFormat = block.blockFormat();
+			auto i = blockFormat.indent();
+			if (i <= 0) {
+				auto cl = block.textList();
+				if (cl) {
+					cursor.beginEditBlock();
+					const auto count = cl->count();
+					for (int i = 0; i < count; i++)
+						cl->removeItem(0);
+					cursor.endEditBlock();
+				}
+				return;
+			}
+			cursor.beginEditBlock();
+			blockFormat.setIndent(i - 1);
+			cursor.setBlockFormat(blockFormat);
+			block = cursor.block();
+			if (auto cl = block.textList()) {
+				auto p = block.previous();
+				auto ptll = p.textList();
+				if (ptll &&
+				    p.blockFormat().indent() ==
+					    block.blockFormat().indent()) {
+					auto count = cl->count();
+					for (int i = 0; i < count; i++) {
+						auto item = cl->item(0);
+						if (ptll) {
+							ptll->add(item);
+						} else {
+							cl->remove(item);
+						}
+					}
+				}
+			}
+			cursor.endEditBlock();
+		};
+		listMenu->addAction(QT_UTF8(obs_module_text("DecreaseIndent")),
+				    this, setListDecr);
+
 		menu->addSeparator();
 		auto clearFormat = [this]() {
 			const auto text = textEdit->toPlainText();
