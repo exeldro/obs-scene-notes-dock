@@ -128,149 +128,166 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 	textEdit->setContextMenuPolicy(Qt::CustomContextMenu);
 	auto contextMenu = [this]() {
 		auto *menu = textEdit->createStandardContextMenu();
-		menu->addSeparator();
-		auto setFont = [this]() {
-			bool success = false;
-			const auto font = QFontDialog::getFont(
-				&success, textEdit->currentFont(), this,
-				QT_UTF8(obs_module_text("Font")));
-			if (success)
-				textEdit->setCurrentFont(font);
-		};
-		menu->addAction(QT_UTF8(obs_module_text("Font")), this,
-				setFont);
+		if (!textEdit->isReadOnly()) {
+			menu->addSeparator();
+			auto setFont = [this]() {
+				bool success = false;
+				const auto font = QFontDialog::getFont(
+					&success, textEdit->currentFont(), this,
+					QT_UTF8(obs_module_text("Font")));
+				if (success)
+					textEdit->setCurrentFont(font);
+			};
+			menu->addAction(QT_UTF8(obs_module_text("Font")), this,
+					setFont);
 
-		auto setFontColor = [this]() {
-			const QColor newColor = QColorDialog::getColor(
-				textEdit->textColor(), this,
-				QT_UTF8(obs_module_text("TextColor")));
-			if (newColor.isValid()) {
-				textEdit->setTextColor(newColor);
-			}
-		};
-		menu->addAction(QT_UTF8(obs_module_text("TextColor")), this,
-				setFontColor);
-		auto setBackgroundColor = [this]() {
-			const QColor newColor = QColorDialog::getColor(
-				textEdit->textBackgroundColor(), this,
-				QT_UTF8(obs_module_text("BackGroundColor")));
-			if (newColor.isValid()) {
-				textEdit->setTextBackgroundColor(newColor);
-			}
-		};
-		menu->addAction(QT_UTF8(obs_module_text("BackgroundColor")),
+			auto setFontColor = [this]() {
+				const QColor newColor = QColorDialog::getColor(
+					textEdit->textColor(), this,
+					QT_UTF8(obs_module_text("TextColor")));
+				if (newColor.isValid()) {
+					textEdit->setTextColor(newColor);
+				}
+			};
+			menu->addAction(QT_UTF8(obs_module_text("TextColor")),
+					this, setFontColor);
+			auto setBackgroundColor = [this]() {
+				const QColor newColor = QColorDialog::getColor(
+					textEdit->textBackgroundColor(), this,
+					QT_UTF8(obs_module_text(
+						"BackGroundColor")));
+				if (newColor.isValid()) {
+					textEdit->setTextBackgroundColor(
+						newColor);
+				}
+			};
+			menu->addAction(
+				QT_UTF8(obs_module_text("BackgroundColor")),
 				this, setBackgroundColor);
 
-		auto listMenu = menu->addMenu(QT_UTF8(obs_module_text("List")));
+			auto listMenu =
+				menu->addMenu(QT_UTF8(obs_module_text("List")));
 
-		std::vector<std::pair<QTextListFormat::Style, const char *>>
-			types{
-				{QTextListFormat::ListDisc, "Disc"},
-				{QTextListFormat::ListCircle, "Circle"},
-				{QTextListFormat::ListSquare, "Square"},
-				{QTextListFormat::ListDecimal, "Decimal"},
-				{QTextListFormat::ListLowerAlpha, "LowerAlpha"},
-				{QTextListFormat::ListUpperAlpha, "UpperAlpha"},
-				{QTextListFormat::ListLowerRoman, "LowerRoman"},
-				{QTextListFormat::ListUpperRoman, "UpperRoman"},
-			};
-		for (const auto &it : types) {
-			auto t = it.first;
-			auto setListType = [this, t]() {
+			std::vector<
+				std::pair<QTextListFormat::Style, const char *>>
+				types{
+					{QTextListFormat::ListDisc, "Disc"},
+					{QTextListFormat::ListCircle, "Circle"},
+					{QTextListFormat::ListSquare, "Square"},
+					{QTextListFormat::ListDecimal,
+					 "Decimal"},
+					{QTextListFormat::ListLowerAlpha,
+					 "LowerAlpha"},
+					{QTextListFormat::ListUpperAlpha,
+					 "UpperAlpha"},
+					{QTextListFormat::ListLowerRoman,
+					 "LowerRoman"},
+					{QTextListFormat::ListUpperRoman,
+					 "UpperRoman"},
+				};
+			for (const auto &it : types) {
+				auto t = it.first;
+				auto setListType = [this, t]() {
+					auto cursor = textEdit->textCursor();
+					auto cl = cursor.currentList();
+					if (!cl) {
+						cursor.createList(t);
+					} else {
+						auto f = cl->format();
+						f.setStyle(t);
+						cl->setFormat(f);
+					}
+				};
+				auto a = listMenu->addAction(
+					QT_UTF8(obs_module_text(it.second)),
+					this, setListType);
+				a->setCheckable(true);
 				auto cursor = textEdit->textCursor();
 				auto cl = cursor.currentList();
-				if (!cl) {
-					cursor.createList(t);
-				} else {
-					auto f = cl->format();
-					f.setStyle(t);
-					cl->setFormat(f);
+				if (cl && cl->format().style() == it.first) {
+					a->setChecked(true);
 				}
-			};
-			auto a = listMenu->addAction(QT_UTF8(obs_module_text(it.second)),
-					    this, setListType);
-			a->setCheckable(true);
-			auto cursor = textEdit->textCursor();
-			auto cl = cursor.currentList();
-			if (cl && cl->format().style() == it.first) {
-				a->setChecked(true);
 			}
-		}
 
-		listMenu->addSeparator();
+			listMenu->addSeparator();
 
-		auto setListIncr = [this]() {
-			auto cursor = textEdit->textCursor();
-			QTextBlockFormat blockFormat =
-				cursor.block().blockFormat();
-			blockFormat.setIndent(blockFormat.indent() + 1);
-			cursor.beginEditBlock();
-			cursor.setBlockFormat(blockFormat);
-			auto cl = cursor.currentList();
-			if (cl) {
-				cursor.createList(cl->format().style());
-			}
-			cursor.endEditBlock();
-		};
-		listMenu->addAction(QT_UTF8(obs_module_text("IncreaseIndent")),
-				    this, setListIncr);
-
-		auto setListDecr = [this]() {
-			auto cursor = textEdit->textCursor();
-			auto block = cursor.block();
-			QTextBlockFormat blockFormat = block.blockFormat();
-			auto i = blockFormat.indent();
-			if (i <= 0) {
-				auto cl = block.textList();
+			auto setListIncr = [this]() {
+				auto cursor = textEdit->textCursor();
+				QTextBlockFormat blockFormat =
+					cursor.block().blockFormat();
+				blockFormat.setIndent(blockFormat.indent() + 1);
+				cursor.beginEditBlock();
+				cursor.setBlockFormat(blockFormat);
+				auto cl = cursor.currentList();
 				if (cl) {
-					cursor.beginEditBlock();
-					const auto count = cl->count();
-					for (int i = 0; i < count; i++)
-						cl->removeItem(0);
-					cursor.endEditBlock();
+					cursor.createList(cl->format().style());
 				}
-				return;
-			}
-			cursor.beginEditBlock();
-			blockFormat.setIndent(i - 1);
-			cursor.setBlockFormat(blockFormat);
-			block = cursor.block();
-			if (auto cl = block.textList()) {
-				auto p = block.previous();
-				auto ptll = p.textList();
-				if (ptll &&
-				    p.blockFormat().indent() ==
-					    block.blockFormat().indent()) {
-					auto count = cl->count();
-					for (int i = 0; i < count; i++) {
-						auto item = cl->item(0);
-						if (ptll) {
-							ptll->add(item);
-						} else {
-							cl->remove(item);
+				cursor.endEditBlock();
+			};
+			listMenu->addAction(
+				QT_UTF8(obs_module_text("IncreaseIndent")),
+				this, setListIncr);
+
+			auto setListDecr = [this]() {
+				auto cursor = textEdit->textCursor();
+				auto block = cursor.block();
+				QTextBlockFormat blockFormat =
+					block.blockFormat();
+				auto i = blockFormat.indent();
+				if (i <= 0) {
+					auto cl = block.textList();
+					if (cl) {
+						cursor.beginEditBlock();
+						const auto count = cl->count();
+						for (int i = 0; i < count; i++)
+							cl->removeItem(0);
+						cursor.endEditBlock();
+					}
+					return;
+				}
+				cursor.beginEditBlock();
+				blockFormat.setIndent(i - 1);
+				cursor.setBlockFormat(blockFormat);
+				block = cursor.block();
+				if (auto cl = block.textList()) {
+					auto p = block.previous();
+					auto ptll = p.textList();
+					if (ptll && p.blockFormat().indent() ==
+							    block.blockFormat()
+								    .indent()) {
+						auto count = cl->count();
+						for (int i = 0; i < count;
+						     i++) {
+							auto item = cl->item(0);
+							if (ptll) {
+								ptll->add(item);
+							} else {
+								cl->remove(
+									item);
+							}
 						}
 					}
 				}
-			}
-			cursor.endEditBlock();
-		};
-		listMenu->addAction(QT_UTF8(obs_module_text("DecreaseIndent")),
-				    this, setListDecr);
+				cursor.endEditBlock();
+			};
+			listMenu->addAction(
+				QT_UTF8(obs_module_text("DecreaseIndent")),
+				this, setListDecr);
 
-		menu->addSeparator();
-		auto clearFormat = [this]() {
-			const auto text = textEdit->toPlainText();
-			textEdit->setTextColor(textEdit->palette().color(
-				QPalette::ColorRole::Foreground));
-			textEdit->setTextBackgroundColor(
-				textEdit->palette().color(
-					QPalette::ColorRole::Background));
-			textEdit->setCurrentFont(textEdit->font());
-			textEdit->setPlainText(text);
-		};
-		menu->addAction(QT_UTF8(obs_module_text("ClearFormat")), this,
-				clearFormat);
-
+			menu->addSeparator();
+			auto clearFormat = [this]() {
+				const auto text = textEdit->toPlainText();
+				textEdit->setTextColor(textEdit->palette().color(
+					QPalette::ColorRole::Foreground));
+				textEdit->setTextBackgroundColor(
+					textEdit->palette().color(
+						QPalette::ColorRole::Background));
+				textEdit->setCurrentFont(textEdit->font());
+				textEdit->setPlainText(text);
+			};
+			menu->addAction(QT_UTF8(obs_module_text("ClearFormat")),
+					this, clearFormat);
+		}
 		menu->addSeparator();
 		auto a = menu->addAction(
 			QT_UTF8(obs_module_text("ShowPreview")), this, [this] {
@@ -284,7 +301,23 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		a->setCheckable(true);
 		a->setChecked(show_preview);
 		a->setEnabled(obs_frontend_preview_program_mode_active());
-
+		a = menu->addAction(QT_UTF8(obs_module_text("Locked")), this, [this] {
+			textEdit->setReadOnly(!textEdit->isReadOnly());
+			obs_source_t *scene =
+				show_preview && obs_frontend_preview_program_mode_active()
+					? obs_frontend_get_current_preview_scene()
+					: obs_frontend_get_current_scene();
+			if (!scene)
+				return;
+			if (auto *settings = obs_source_get_settings(scene)) {
+				obs_data_set_bool(settings, "notes_locked",
+						  textEdit->isReadOnly());
+				obs_data_release(settings);
+			}
+			obs_source_release(scene);
+		});
+		a->setCheckable(true);
+		a->setChecked(textEdit->isReadOnly());
 		menu->exec(QCursor::pos());
 	};
 	connect(textEdit, &QTextEdit::customContextMenuRequested, contextMenu);
@@ -312,6 +345,8 @@ void SceneNotesDock::LoadNotes()
 	if (auto *settings = obs_source_get_settings(scene)) {
 		textEdit->setHtml(
 			QT_UTF8(obs_data_get_string(settings, "notes")));
+		textEdit->setReadOnly(
+			obs_data_get_bool(settings, "notes_locked"));
 		obs_data_release(settings);
 	}
 	obs_source_release(scene);
