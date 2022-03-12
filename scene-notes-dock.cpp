@@ -1,6 +1,7 @@
 #include "scene-notes-dock.hpp"
 #include <obs-module.h>
 #include <QColorDialog>
+#include <QFileDialog>
 #include <QFontDialog>
 #include <QMainWindow>
 #include <QMenu>
@@ -10,6 +11,7 @@
 
 #include "version.h"
 #include "util/config-file.h"
+#include "util/platform.h"
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("Exeldro");
@@ -111,13 +113,39 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 				: obs_frontend_get_current_scene();
 		if (!scene)
 			return;
+		QString old_notes;
 		if (auto *settings = obs_source_get_settings(scene)) {
-			const auto old_notes =
-				QT_UTF8(obs_data_get_string(settings, "notes"));
+			auto file = obs_data_get_string(settings, "notes_file");
+			if (file && strlen(file) && os_file_exists(file)) {
+				auto html = os_quick_read_utf8_file(file);
+				old_notes = QT_UTF8(html);
+				bfree(html);
+			} else {
+				old_notes = QT_UTF8(
+					obs_data_get_string(settings, "notes"));
+			}
 			const auto new_notes = textEdit->toHtml();
 			if (old_notes != new_notes) {
-				obs_data_set_string(settings, "notes",
-						    QT_TO_UTF8(new_notes));
+				if (file && strlen(file)) {
+					auto h = new_notes.toUtf8();
+					auto html = h.constData();
+					if (os_quick_write_utf8_file(
+						    file, html, strlen(html),
+						    false)) {
+						auto item = obs_data_item_byname(
+							settings, "notes");
+						if (item) {
+							obs_data_item_remove(
+								&item);
+							obs_data_item_release(
+								&item);
+						}
+					}
+				} else {
+					obs_data_set_string(
+						settings, "notes",
+						QT_TO_UTF8(new_notes));
+				}
 			}
 			obs_data_release(settings);
 		}
@@ -318,6 +346,81 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		});
 		a->setCheckable(true);
 		a->setChecked(textEdit->isReadOnly());
+		menu->addSeparator();
+		a = menu->addAction(
+			QT_UTF8(obs_module_text("SaveInSceneCollection")), this,
+			[this] {
+				obs_source_t *scene =
+					show_preview && obs_frontend_preview_program_mode_active()
+						? obs_frontend_get_current_preview_scene()
+						: obs_frontend_get_current_scene();
+				if (!scene)
+					return;
+				if (auto *settings =
+					    obs_source_get_settings(scene)) {
+					obs_data_set_string(settings,
+							    "notes_file", "");
+					const auto notes = textEdit->toHtml();
+					obs_data_set_string(settings, "notes",
+							    QT_TO_UTF8(notes));
+					obs_data_release(settings);
+				}
+				obs_source_release(scene);
+			});
+		a->setCheckable(true);
+		const char *file = nullptr;
+		obs_source_t *scene =
+			show_preview && obs_frontend_preview_program_mode_active()
+				? obs_frontend_get_current_preview_scene()
+				: obs_frontend_get_current_scene();
+		if (!scene)
+			return;
+		if (auto *settings = obs_source_get_settings(scene)) {
+			file = obs_data_get_string(settings, "notes_file");
+			obs_data_release(settings);
+		}
+		obs_source_release(scene);
+		a->setChecked(!file || !strlen(file));
+
+		a = menu->addAction(QT_UTF8(obs_module_text("SaveInFile")), this, [this] {
+			obs_source_t *scene =
+				show_preview && obs_frontend_preview_program_mode_active()
+					? obs_frontend_get_current_preview_scene()
+					: obs_frontend_get_current_scene();
+			if (!scene)
+				return;
+			if (auto *settings = obs_source_get_settings(scene)) {
+				auto file = obs_data_get_string(settings,
+								"notes_file");
+
+				QString fileName = QFileDialog::getSaveFileName(
+					this, "", file, "HTML File (*.html)");
+				if (!fileName.isEmpty()) {
+					obs_data_set_string(
+						settings, "notes_file",
+						QT_TO_UTF8(fileName));
+					auto html = os_quick_read_utf8_file(
+						QT_TO_UTF8(fileName));
+					if (html) {
+						textEdit->setHtml(
+							QT_UTF8(html));
+						bfree(html);
+					} else {
+						auto h = textEdit->toHtml()
+								 .toUtf8();
+						auto html = h.constData();
+						os_quick_write_utf8_file(
+							QT_TO_UTF8(fileName), html,
+							strlen(html), false);
+					}
+				}
+				obs_data_release(settings);
+			}
+			obs_source_release(scene);
+		});
+		a->setCheckable(true);
+		a->setChecked(file && strlen(file));
+
 		menu->exec(QCursor::pos());
 	};
 	connect(textEdit, &QTextEdit::customContextMenuRequested, contextMenu);
@@ -343,8 +446,15 @@ void SceneNotesDock::LoadNotes()
 		return;
 
 	if (auto *settings = obs_source_get_settings(scene)) {
-		textEdit->setHtml(
-			QT_UTF8(obs_data_get_string(settings, "notes")));
+		auto file = obs_data_get_string(settings, "notes_file");
+		if (file && strlen(file) && os_file_exists(file)) {
+			auto html = os_quick_read_utf8_file(file);
+			textEdit->setHtml(QT_UTF8(html));
+			bfree(html);
+		} else {
+			textEdit->setHtml(QT_UTF8(
+				obs_data_get_string(settings, "notes")));
+		}
 		textEdit->setReadOnly(
 			obs_data_get_bool(settings, "notes_locked"));
 		obs_data_release(settings);
