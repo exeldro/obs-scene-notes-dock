@@ -76,6 +76,8 @@ void frontend_save(obs_data_t *save_data, bool saving, void *data)
 static void InsertTimePressed(void *data, obs_hotkey_id id,
 			      obs_hotkey_t *hotkey, bool pressed)
 {
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
 	if (!pressed)
 		return;
 	auto dock = static_cast<SceneNotesDock *>(data);
@@ -84,13 +86,13 @@ static void InsertTimePressed(void *data, obs_hotkey_id id,
 
 SceneNotesDock::SceneNotesDock(QWidget *parent)
 	: QDockWidget(parent),
+	  show_preview(config_get_bool(obs_frontend_get_global_config(),
+	                               "SceneNotesDock", "ShowPreview")),
 	  textEdit(new QTextEdit(this)),
 	  insertTime(obs_hotkey_register_frontend(
 		  "SceneNotesDockInsertTime",
 		  obs_module_text("SceneNotesDockInsertTime"),
-		  InsertTimePressed, this)),
-	  show_preview(config_get_bool(obs_frontend_get_global_config(),
-				       "SceneNotesDock", "ShowPreview"))
+		  InsertTimePressed, this))
 {
 	setFeatures(DockWidgetMovable | DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
@@ -306,10 +308,10 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 			auto clearFormat = [this]() {
 				const auto text = textEdit->toPlainText();
 				textEdit->setTextColor(textEdit->palette().color(
-					QPalette::ColorRole::Foreground));
+					QPalette::ColorRole::Text));
 				textEdit->setTextBackgroundColor(
 					textEdit->palette().color(
-						QPalette::ColorRole::Background));
+						QPalette::ColorRole::Base));
 				textEdit->setCurrentFont(textEdit->font());
 				textEdit->setPlainText(text);
 			};
