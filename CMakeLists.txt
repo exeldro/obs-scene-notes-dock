@@ -8,6 +8,11 @@ endif()
 
 project(scene-notes-dock VERSION 0.1.1)
 set(PROJECT_FULL_NAME "Scene Notes Dock")
+
+# Set new UUIDs when you start to create a new plugin.
+set(MACOS_PACKAGE_UUID "03EC1C6E-F6CC-49C9-B08D-03C57F9163F3")
+set(MACOS_INSTALLER_UUID "C9286EDE-0A34-4CB7-85CB-992F34DA374C")
+
 add_library(${PROJECT_NAME} MODULE)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/version.h.in ${CMAKE_CURRENT_SOURCE_DIR}/version.h)
