@@ -24,7 +24,7 @@ bool obs_module_load()
 	const auto main_window =
 		static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	obs_frontend_push_ui_translation(obs_module_get_string);
-	obs_frontend_add_dock(new SceneNotesDock(main_window));
+	obs_frontend_add_dock_by_id("scene-notes-dock", obs_module_text("SceneNotes"), new SceneNotesDock(main_window));
 	obs_frontend_pop_ui_translation();
 
 	return true;
@@ -85,7 +85,7 @@ static void InsertTimePressed(void *data, obs_hotkey_id id,
 }
 
 SceneNotesDock::SceneNotesDock(QWidget *parent)
-	: QDockWidget(parent),
+	: QWidget(parent),
 	  show_preview(config_get_bool(obs_frontend_get_global_config(),
 	                               "SceneNotesDock", "ShowPreview")),
 	  textEdit(new QTextEdit(this)),
@@ -94,19 +94,11 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		  obs_module_text("SceneNotesDockInsertTime"),
 		  InsertTimePressed, this))
 {
-	setFeatures(DockWidgetMovable | DockWidgetFloatable);
-	setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
-	setObjectName("SceneNotesDock");
-	setFloating(true);
-	hide();
-
 	auto *mainLayout = new QVBoxLayout(this);
 
 	mainLayout->addWidget(textEdit);
 
-	auto *dockWidgetContents = new QWidget;
-	dockWidgetContents->setLayout(mainLayout);
-	setWidget(dockWidgetContents);
+	setLayout(mainLayout);
 
 	auto changeText = [this]() {
 		obs_source_t *scene =

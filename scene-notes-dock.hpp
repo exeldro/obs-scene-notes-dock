@@ -5,7 +5,7 @@
 #include <QTextEdit>
 #include "obs.hpp"
 
-class SceneNotesDock : public QDockWidget {
+class SceneNotesDock : public QWidget {
 	Q_OBJECT
 
 private:
