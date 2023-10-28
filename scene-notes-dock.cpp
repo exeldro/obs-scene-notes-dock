@@ -12,6 +12,7 @@
 #include <QSpinBox>
 #include <QSlider>
 #include <QWidgetAction>
+#include <QDesktopServices>
 
 #include "version.h"
 #include "util/config-file.h"
@@ -539,6 +540,20 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		speedAction->setDefaultWidget(speed);
 
 		menu->addAction(speedAction);
+
+		menu->addSeparator();
+		auto about_menu = menu->addMenu(
+			QString::fromUtf8(obs_module_text("About")));
+		about_menu->addAction(
+			QString::fromUtf8("Scene Notes Dock (") +
+				PROJECT_VERSION + ")",
+			[] {
+				QDesktopServices::openUrl(QUrl(
+					"https://obsproject.com/forum/resources/scene-notes-dock.1398/"));
+			});
+		about_menu->addAction(QString::fromUtf8("Exeldro"), [] {
+			QDesktopServices::openUrl(QUrl("https://exeldro.com"));
+		});
 
 		menu->exec(QCursor::pos());
 	};
