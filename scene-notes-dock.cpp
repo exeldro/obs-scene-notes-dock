@@ -8,6 +8,10 @@
 #include <QStyle>
 #include <QVBoxLayout>
 #include <QTextList>
+#include <QScrollBar>
+#include <QSpinBox>
+#include <QSlider>
+#include <QWidgetAction>
 
 #include "version.h"
 #include "util/config-file.h"
@@ -65,11 +69,51 @@ void frontend_save(obs_data_t *save_data, bool saving, void *data)
 		obs_data_set_array(save_data, "sceneNotesDockInsertTimeHotkey",
 				   hotkey_save_array);
 		obs_data_array_release(hotkey_save_array);
+		obs_data_set_bool(save_data, "notes_auto_scroll",
+				  dock->timer.isActive());
+		obs_data_set_int(save_data, "notes_scroll_speed",
+				 dock->timer.interval());
+		obs_data_array_t *hotkey_start_save_array = nullptr;
+		obs_data_array_t *hotkey_stop_save_array = nullptr;
+		obs_hotkey_pair_save(dock->toggleAutoScroll,
+				     &hotkey_start_save_array,
+				     &hotkey_stop_save_array);
+		if (hotkey_start_save_array) {
+			obs_data_set_array(
+				save_data,
+				"sceneNotesDockAutoStartScrollHotkey",
+				hotkey_start_save_array);
+			obs_data_array_release(hotkey_start_save_array);
+		}
+		if (hotkey_stop_save_array) {
+			obs_data_set_array(save_data,
+					   "sceneNotesDockAutoStopScrollHotkey",
+					   hotkey_stop_save_array);
+			obs_data_array_release(hotkey_stop_save_array);
+		}
 	} else {
 		obs_data_array_t *hotkey_save_array = obs_data_get_array(
 			save_data, "sceneNotesDockInsertTimeHotkey");
 		obs_hotkey_load(dock->insertTime, hotkey_save_array);
 		obs_data_array_release(hotkey_save_array);
+		int speed = obs_data_get_int(save_data, "notes_scroll_speed");
+		if (speed)
+			dock->timer.setInterval(speed);
+		if (obs_data_get_bool(save_data, "notes_auto_scroll")) {
+			if (!dock->timer.isActive())
+				dock->timer.start();
+		} else if (dock->timer.isActive()) {
+			dock->timer.stop();
+		}
+		obs_data_array_t *hotkey_start_save_array = obs_data_get_array(
+			save_data, "sceneNotesDockAutoStartScrollHotkey");
+		obs_data_array_t *hotkey_stop_save_array = obs_data_get_array(
+			save_data, "sceneNotesDockAutoStartScrollHotkey");
+		obs_hotkey_pair_load(dock->toggleAutoScroll,
+				     hotkey_start_save_array,
+				     hotkey_stop_save_array);
+		obs_data_array_release(hotkey_start_save_array);
+		obs_data_array_release(hotkey_stop_save_array);
 	}
 }
 
@@ -84,15 +128,50 @@ static void InsertTimePressed(void *data, obs_hotkey_id id,
 	QMetaObject::invokeMethod(dock, "InsertTime");
 }
 
+static bool StartAutoScrollPressed(void *data, obs_hotkey_pair_id id,
+				   obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	if (!pressed)
+		return false;
+	auto dock = static_cast<SceneNotesDock *>(data);
+	if (dock->timer.isActive())
+		return false;
+	dock->timer.start();
+	return true;
+}
+
+static bool StopAutoScrollPressed(void *data, obs_hotkey_pair_id id,
+				  obs_hotkey_t *hotkey, bool pressed)
+{
+	UNUSED_PARAMETER(id);
+	UNUSED_PARAMETER(hotkey);
+	if (!pressed)
+		return false;
+	auto dock = static_cast<SceneNotesDock *>(data);
+	if (!dock->timer.isActive())
+		return false;
+	dock->timer.stop();
+	return true;
+}
+
 SceneNotesDock::SceneNotesDock(QWidget *parent)
 	: QDockWidget(parent),
 	  show_preview(config_get_bool(obs_frontend_get_global_config(),
-	                               "SceneNotesDock", "ShowPreview")),
+				       "SceneNotesDock", "ShowPreview")),
 	  textEdit(new QTextEdit(this)),
 	  insertTime(obs_hotkey_register_frontend(
 		  "SceneNotesDockInsertTime",
 		  obs_module_text("SceneNotesDockInsertTime"),
-		  InsertTimePressed, this))
+		  InsertTimePressed, this)),
+	  toggleAutoScroll(obs_hotkey_pair_register_frontend(
+		  "SceneNotesDockStartAutoScroll",
+		  obs_module_text("SceneNotesDockStartAutoScroll"),
+		  "SceneNotesDockStopAutoScroll",
+		  obs_module_text("SceneNotesDockStopAutoScroll"),
+		  StartAutoScrollPressed, StopAutoScrollPressed, this, this)),
+	  timer()
 {
 	setFeatures(DockWidgetMovable | DockWidgetFloatable);
 	setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
@@ -307,8 +386,9 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 			menu->addSeparator();
 			auto clearFormat = [this]() {
 				const auto text = textEdit->toPlainText();
-				textEdit->setTextColor(textEdit->palette().color(
-					QPalette::ColorRole::Text));
+				textEdit->setTextColor(
+					textEdit->palette().color(
+						QPalette::ColorRole::Text));
 				textEdit->setTextBackgroundColor(
 					textEdit->palette().color(
 						QPalette::ColorRole::Base));
@@ -412,8 +492,9 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 								 .toUtf8();
 						auto html = h.constData();
 						os_quick_write_utf8_file(
-							QT_TO_UTF8(fileName), html,
-							strlen(html), false);
+							QT_TO_UTF8(fileName),
+							html, strlen(html),
+							false);
 					}
 				}
 				obs_data_release(settings);
@@ -422,11 +503,52 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		});
 		a->setCheckable(true);
 		a->setChecked(file && strlen(file));
+		menu->addSeparator();
+		a = menu->addAction(QT_UTF8(obs_module_text("AutoScroll")),
+				    this, [this] {
+					    if (timer.isActive()) {
+						    timer.stop();
+					    } else {
+						    timer.start();
+					    }
+				    });
+		a->setCheckable(true);
+		a->setChecked(timer.isActive());
+
+		QSlider *speed = new QSlider(Qt::Horizontal, menu);
+		speed->setMinimum(0);
+#define MAX_SCROLL_SPEED 500
+		speed->setMaximum(MAX_SCROLL_SPEED - 1);
+		speed->setSingleStep(1);
+		speed->setValue(MAX_SCROLL_SPEED - timer.interval());
+
+		auto setSpeed = [this](int speed) {
+			if (timer.interval() == MAX_SCROLL_SPEED - speed)
+				return;
+			bool active = timer.isActive();
+			if (active)
+				timer.stop();
+			timer.setInterval(MAX_SCROLL_SPEED - speed);
+			if (active)
+				timer.start();
+		};
+		connect(speed, (void(QSlider::*)(int)) & QSlider::valueChanged,
+			setSpeed);
+
+		QWidgetAction *speedAction = new QWidgetAction(menu);
+		speedAction->setDefaultWidget(speed);
+
+		menu->addAction(speedAction);
 
 		menu->exec(QCursor::pos());
 	};
 	connect(textEdit, &QTextEdit::customContextMenuRequested, contextMenu);
-
+	connect(&timer, &QTimer::timeout, [this] {
+		auto vs = textEdit->verticalScrollBar();
+		if (vs->value() < vs->maximum()) {
+			vs->setValue(vs->value() + 1);
+		}
+	});
 	obs_frontend_add_event_callback(frontend_event, this);
 	obs_frontend_add_save_callback(frontend_save, this);
 }
