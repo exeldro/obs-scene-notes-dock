@@ -6,7 +6,7 @@
 #include <QTimer>
 #include "obs.hpp"
 
-class SceneNotesDock : public QDockWidget {
+class SceneNotesDock : public QWidget {
 	Q_OBJECT
 
 private:
@@ -14,6 +14,7 @@ private:
 	QTextEdit *textEdit;
 private slots:
 	void InsertTime();
+
 public:
 	SceneNotesDock(QWidget *parent = nullptr);
 	~SceneNotesDock();

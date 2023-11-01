@@ -22,6 +22,9 @@ OBS_DECLARE_MODULE()
 OBS_MODULE_AUTHOR("Exeldro");
 OBS_MODULE_USE_DEFAULT_LOCALE("scene-notes-dock", "en-US")
 
+#define QT_UTF8(str) QString::fromUtf8(str)
+#define QT_TO_UTF8(str) str.toUtf8().constData()
+
 bool obs_module_load()
 {
 	blog(LOG_INFO, "[Scene Notes Dock] loaded version %s", PROJECT_VERSION);
@@ -29,7 +32,22 @@ bool obs_module_load()
 	const auto main_window =
 		static_cast<QMainWindow *>(obs_frontend_get_main_window());
 	obs_frontend_push_ui_translation(obs_module_get_string);
-	obs_frontend_add_dock(new SceneNotesDock(main_window));
+	auto dockContents = new SceneNotesDock(main_window);
+
+#if LIBOBS_API_VER >= MAKE_SEMANTIC_VERSION(30, 0, 0)
+	obs_frontend_add_dock_by_id(
+		"SceneNotesDock", obs_module_text("SceneNotes"), dockContents);
+#else
+	const auto dock = new QDockWidget(main_window);
+	dock->setFeatures(QDockWidget::DockWidgetMovable |
+			  QDockWidget::DockWidgetFloatable);
+	dock->setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
+	dock->setObjectName("SceneNotesDock");
+	dock->setFloating(true);
+	dock->hide();
+	dock->setWidget(dockContents);
+	obs_frontend_add_dock(dock);
+#endif
 	obs_frontend_pop_ui_translation();
 
 	return true;
@@ -46,9 +64,6 @@ MODULE_EXPORT const char *obs_module_name(void)
 {
 	return obs_module_text("SceneNotesDock");
 }
-
-#define QT_UTF8(str) QString::fromUtf8(str)
-#define QT_TO_UTF8(str) str.toUtf8().constData()
 
 static void frontend_event(enum obs_frontend_event event, void *data)
 {
@@ -158,7 +173,7 @@ static bool StopAutoScrollPressed(void *data, obs_hotkey_pair_id id,
 }
 
 SceneNotesDock::SceneNotesDock(QWidget *parent)
-	: QDockWidget(parent),
+	: QWidget(parent),
 	  show_preview(config_get_bool(obs_frontend_get_global_config(),
 				       "SceneNotesDock", "ShowPreview")),
 	  textEdit(new QTextEdit(this)),
@@ -174,19 +189,11 @@ SceneNotesDock::SceneNotesDock(QWidget *parent)
 		  StartAutoScrollPressed, StopAutoScrollPressed, this, this)),
 	  timer()
 {
-	setFeatures(DockWidgetMovable | DockWidgetFloatable);
-	setWindowTitle(QT_UTF8(obs_module_text("SceneNotes")));
-	setObjectName("SceneNotesDock");
-	setFloating(true);
-	hide();
-
 	auto *mainLayout = new QVBoxLayout(this);
 
 	mainLayout->addWidget(textEdit);
 
-	auto *dockWidgetContents = new QWidget;
-	dockWidgetContents->setLayout(mainLayout);
-	setWidget(dockWidgetContents);
+	setLayout(mainLayout);
 
 	auto changeText = [this]() {
 		obs_source_t *scene =
