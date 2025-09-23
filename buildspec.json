@@ -33,7 +33,7 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.exeldro.downstream-keyer"
+            "bundleId": "com.exeldro.scene-notes-dock"
         }
     },
     "name": "scene-notes-dock",
