@@ -4,9 +4,10 @@
 #include <QDockWidget>
 #include <QTextEdit>
 #include <QTimer>
+#include <QFrame>
 #include "obs.hpp"
 
-class SceneNotesDock : public QWidget {
+class SceneNotesDock : public QFrame {
 	Q_OBJECT
 
 private:

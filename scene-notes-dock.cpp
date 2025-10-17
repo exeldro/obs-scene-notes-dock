@@ -138,7 +138,7 @@ static bool StopAutoScrollPressed(void *data, obs_hotkey_pair_id id, obs_hotkey_
 }
 
 SceneNotesDock::SceneNotesDock(QWidget *parent)
-	: QWidget(parent),
+	: QFrame(parent),
 
 	  show_preview(config_get_bool(obs_frontend_get_user_config(), "SceneNotesDock", "ShowPreview")),
 	  textEdit(new QTextEdit(this)),
